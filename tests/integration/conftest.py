@@ -23,7 +23,10 @@ def db():
 
 
 @pytest.fixture(autouse=True)
-def _clean_users(db):
-    db.execute(text("TRUNCATE TABLE users"))
+def _clean_tables(db):
+    # calculations holds a foreign key into users, so Postgres refuses a
+    # bare TRUNCATE on users alone; truncating both in one statement
+    # resolves the dependency without CASCADE surprises.
+    db.execute(text("TRUNCATE TABLE calculations, users"))
     db.commit()
     yield
