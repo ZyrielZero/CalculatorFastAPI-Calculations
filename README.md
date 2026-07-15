@@ -38,6 +38,38 @@ case and at least one digit. `UserRead` never declares `password_hash`,
 so the hash cannot serialize into any response. Successful authentication
 returns a `Token` envelope carrying a signed JWT.
 
+## Calculation Model (Module 11)
+
+`app/models/calculation.py` stores one calculation per row: a UUID primary
+key, float operands `a` and `b`, a `type` string, a `user_id` foreign key
+into `users` with `ON DELETE CASCADE`, and a database-stamped `created_at`.
+The result is not stored — it is computed on demand through a strategy
+factory (`app/calculation_factory.py`) that resolves each type to a
+registered operation class, so a stored result can never drift from its
+operands. Adding a new operation is one class and one decorator.
+
+Two CHECK constraints back the application-layer rules at the database
+level: `type` must be one of `add`, `sub`, `multiply`, `divide`, and a
+`divide` row can never hold a zero divisor.
+
+`CalculationCreate` validates inbound payloads — finite numeric operands
+(NaN and infinity rejected), case-insensitive type strings validated
+against the enum, and a zero divisor refused on divide. `CalculationRead`
+serializes the row plus the computed `result` and never exposes anything
+beyond its declared fields.
+
+Calculation tests run inside the same suites and gates as the user tests;
+no workflow changes were needed:
+
+```
+pytest tests/unit/test_calculation_factory.py \
+       tests/unit/test_calculation_model.py \
+       tests/unit/test_calculation_schemas.py
+pytest tests/integration/test_calculation_persistence.py
+```
+
+Endpoints for calculations (BREAD routes) arrive in Module 12.
+
 ## Setup and Run (Docker Compose)
 
 The stack runs three services: the FastAPI app, PostgreSQL 16, and
